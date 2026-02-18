@@ -270,7 +270,11 @@ This project was built with extensive AI assistance using **Claude Code (Opus 4.
 
 ## Screenshots
 
-*Screenshots available in the demo — connect wallet and explore the dashboard, settings, activity log, yield table, swap modal, and analytics charts.*
+### Dashboard
+![NectarFi Dashboard](screenshots/dashboard.png)
+
+### Agent Activity & Yield Opportunities
+![Agent Activity](screenshots/activity.png)
 
 ---
 
