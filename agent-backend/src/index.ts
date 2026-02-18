@@ -12,6 +12,7 @@ const app = express();
 const ALLOWED_ORIGINS = [
   'http://localhost:3000',
   'http://localhost:3001',
+  'https://nectarfi.vercel.app',
   process.env.FRONTEND_URL,
 ].filter(Boolean) as string[];
 
