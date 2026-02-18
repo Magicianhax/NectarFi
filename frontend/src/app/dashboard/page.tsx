@@ -213,6 +213,16 @@ export default function Dashboard() {
                   Settings
                 </button>
               </Link>
+              <Link href="/dashboard/faq">
+                <button className="skeuo-button-dark px-2.5 py-1.5 text-xs flex items-center gap-1.5 whitespace-nowrap">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                  </svg>
+                  FAQ
+                </button>
+              </Link>
             </div>
           </div>
         </header>
