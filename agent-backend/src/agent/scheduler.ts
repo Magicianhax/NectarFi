@@ -5,8 +5,8 @@ import { fetchAllYields, getWalletBalances, getOnchainPositions } from '../data/
 import { scoreOpportunity, evaluateRebalance } from './evaluator.js';
 import { executeRebalance, deployFunds } from './executor.js';
 import { makeInvestmentDecision, generateDailySummary } from '../ai/openai.js';
-import { getAgentAddress, sendTxLocal } from '../wallet/local.js';
-import { getUserPositions, upsertPosition, logTransaction, saveActivity, getRecentActivity, getUserSettings, saveYieldSnapshot, savePortfolioSnapshot, supabase, getApyTrends, getRecentDecisions, getPositionAges } from '../db/supabase.js';
+import { createSendTxFn } from '../wallet/privy.js';
+import { getUserPositions, upsertPosition, logTransaction, saveActivity, getRecentActivity, getUserSettings, saveYieldSnapshot, savePortfolioSnapshot, supabase, getApyTrends, getRecentDecisions, getPositionAges, getUserWallet } from '../db/supabase.js';
 import type { ApyTrendData } from './evaluator.js';
 import { getCachedPrices, refreshPrices } from '../data/defillama.js';
 import { swapTokens } from '../protocols/pancakeswap.js';
@@ -184,7 +184,14 @@ export async function runAiRebalance(userId?: string, dryRun = false): Promise<{
   actions: Array<{ type: string; asset: string; protocol: string; txHash?: string; summary?: string; error?: string; amountPercent?: number; reason?: string }>;
   reasoning: string;
 }> {
-  const agentAddr = getAgentAddress();
+  if (!userId) throw new Error('userId is required for rebalance');
+
+  // Look up user's Privy agent wallet from DB
+  const userWallet = await getUserWallet(userId);
+  if (!userWallet) throw new Error('No agent wallet found for user');
+
+  const agentAddr = userWallet.walletAddress as `0x${string}`;
+  const sendTx = createSendTxFn(userWallet.walletId);
   console.log(`[REBALANCE] Starting AI-driven rebalance for ${agentAddr}`);
 
   // Load user settings from DB (fall back to defaults)
@@ -376,7 +383,7 @@ export async function runAiRebalance(userId?: string, dryRun = false): Promise<{
             console.log(`[REBALANCE] Auto-wrapping ${formatUnits(wrapAmount, 18)} BNB → WBNB (keeping ${formatUnits(gasReserve, 18)} BNB for gas)`);
             const wbnbAbi = [{ name: 'deposit', type: 'function', inputs: [], outputs: [], stateMutability: 'payable' }] as const;
             const wrapData = encodeFunctionData({ abi: wbnbAbi, functionName: 'deposit' });
-            await sendTxLocal({ to: ASSETS.WBNB.address, data: wrapData, value: wrapAmount });
+            await sendTx({ to: ASSETS.WBNB.address, data: wrapData, value: wrapAmount });
             broadcast('auto_wrap', {
               title: 'BNB wrapped to WBNB',
               description: `Auto-wrapped ${parseFloat(formatUnits(wrapAmount, 18)).toFixed(4)} BNB → WBNB for deployment`,
@@ -418,7 +425,7 @@ export async function runAiRebalance(userId?: string, dryRun = false): Promise<{
           description: `Supplying ${parseFloat(formattedAmt).toFixed(2)} ${action.asset} to ${action.protocol} lending pool${apyStr ? ` at ${apyStr} APY` : ''}`,
         });
 
-        const result = await deployFunds(action.asset, amount, action.protocol, agentAddr, sendTxLocal);
+        const result = await deployFunds(action.asset, amount, action.protocol, agentAddr, sendTx);
 
         results.push({
           type: 'supply',
@@ -494,7 +501,7 @@ export async function runAiRebalance(userId?: string, dryRun = false): Promise<{
             newApy: toOpp?.supplyApy || 0,
           },
           agentAddr,
-          sendTxLocal,
+          sendTx,
         );
 
         if (execResult.success) {
@@ -578,7 +585,7 @@ export async function runAiRebalance(userId?: string, dryRun = false): Promise<{
           toAssetConfig.address,
           swapAmount,
           agentAddr,
-          sendTxLocal,
+          sendTx,
           100, // 1% slippage
         );
         console.log(`[REBALANCE] Swap success: ${swapTxHash}`);
@@ -595,7 +602,7 @@ export async function runAiRebalance(userId?: string, dryRun = false): Promise<{
         const supplyFormatted = formatUnits(supplyAmount, targetBalance.decimals);
         console.log(`[REBALANCE] Supplying ${supplyFormatted} ${action.asset} to ${action.protocol}`);
 
-        const supplyResult = await deployFunds(action.asset, supplyAmount, action.protocol, agentAddr, sendTxLocal);
+        const supplyResult = await deployFunds(action.asset, supplyAmount, action.protocol, agentAddr, sendTx);
 
         results.push({
           type: 'swap_and_supply',
@@ -699,14 +706,25 @@ export function startPortfolioSnapshotter() {
   });
 }
 
-// Every 30 min (when agent is running): evaluate rebalance with AI
+// Every 30 min (when agent is running): evaluate rebalance for all users with agent wallets
 export function startRebalanceEvaluator() {
   cron.schedule('*/30 * * * *', async () => {
     if (!agentRunning) return;
     try {
-      console.log('[CRON] Agent is running — evaluating AI rebalance...');
-      const result = await runAiRebalance();
-      console.log('[CRON] Rebalance result:', result.reasoning);
+      console.log('[CRON] Agent is running — evaluating AI rebalance for all users...');
+      const { data: users } = await supabase
+        .from('users')
+        .select('id')
+        .not('agent_wallet_id', 'is', null);
+      if (!users?.length) return;
+      for (const u of users) {
+        try {
+          const result = await runAiRebalance(u.id);
+          console.log(`[CRON] Rebalance for ${u.id}:`, result.reasoning);
+        } catch (err) {
+          console.error(`[CRON] Rebalance failed for ${u.id}:`, err);
+        }
+      }
     } catch (error) {
       console.error('[CRON] Rebalance evaluation error:', error);
     }

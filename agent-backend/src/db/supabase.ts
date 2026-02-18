@@ -42,6 +42,17 @@ export async function updateAgentWallet(userId: string, walletId: string, wallet
     .eq('id', userId);
 }
 
+// Get user's agent wallet info
+export async function getUserWallet(userId: string): Promise<{ walletId: string; walletAddress: string } | null> {
+  const { data } = await supabase
+    .from('users')
+    .select('agent_wallet_id, agent_wallet_address')
+    .eq('id', userId)
+    .maybeSingle();
+  if (!data?.agent_wallet_id || !data?.agent_wallet_address) return null;
+  return { walletId: data.agent_wallet_id, walletAddress: data.agent_wallet_address };
+}
+
 // Settings operations
 export async function getUserSettings(userId: string) {
   const { data, error } = await supabase
