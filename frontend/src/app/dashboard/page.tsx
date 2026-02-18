@@ -77,7 +77,7 @@ export default function Dashboard() {
   const dailyYield = positions.reduce((sum, p) => sum + (p.valueUsd * p.apy / 100 / 365), 0);
   const avgApy = totalPositionValue > 0 ? (dailyYield * 365 / totalPositionValue) * 100 : 0;
   const totalDeposited = (portfolio.data as { totalDeposited?: number })?.totalDeposited || 0;
-  const totalEarned = totalDeposited > 0 ? Math.max(0, totalValue - totalDeposited) : 0;
+  const totalEarned = (totalDeposited > 0.01 && positions.length > 0) ? Math.max(0, totalPositionValue - totalDeposited) : 0;
 
   const isAgentRunning = agentStatus.data ?? false;
   const nonZeroBalances = balances.filter((b) => {
@@ -541,7 +541,7 @@ export default function Dashboard() {
             {[
               { label: 'Portfolio Value', value: totalValue, decimals: 2, color: 'text-emboss', bar: 'gold', barPct: Math.min((totalValue / 10000) * 100, 100), sub: `${positions.length} position${positions.length !== 1 ? 's' : ''}` },
               { label: 'Daily Yield', value: dailyYield, decimals: 4, prefix: '+', color: 'text-green-glow', bar: 'green', barPct: Math.min(avgApy * 10, 100), sub: `${avgApy.toFixed(2)}% APY avg` },
-              { label: 'Total Earned', value: totalEarned, decimals: 4, prefix: '+', color: 'text-green-glow', bar: 'green', barPct: Math.min(totalEarned > 0 ? (totalEarned / Math.max(totalDeposited, 1)) * 100 : 0, 100), sub: totalDeposited > 0 ? `on $${totalDeposited.toFixed(2)} deposited` : 'no deposits yet' },
+              { label: 'Total Earned', value: totalEarned, decimals: 4, prefix: '+', color: 'text-green-glow', bar: 'green', barPct: Math.min(totalEarned > 0 ? (totalEarned / Math.max(totalDeposited, 1)) * 100 : 0, 100), sub: totalDeposited > 0.01 ? `on $${totalDeposited.toFixed(2)} deposited` : 'no deposits yet' },
             ].map((s) => (
               <div key={s.label} className="skeuo-inset p-4 flex flex-col justify-between" style={{ minHeight: 100 }}>
                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">{s.label}</span>
