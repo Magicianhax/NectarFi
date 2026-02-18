@@ -168,7 +168,10 @@ export function useAgent() {
   });
 
   const rebalance = useMutation({
-    mutationFn: () => api.triggerRebalance(userId!),
+    mutationFn: () => {
+      if (!userId) throw new Error('Not authenticated');
+      return api.triggerRebalance(userId);
+    },
     onSuccess: () => {
       // Refresh positions and balances after rebalance
       queryClient.invalidateQueries({ queryKey: ['onchainPositions'] });
@@ -245,7 +248,10 @@ export function useAgent() {
   });
 
   const rebalancePreview = useMutation({
-    mutationFn: () => api.rebalancePreview(userId!),
+    mutationFn: () => {
+      if (!userId) throw new Error('Not authenticated');
+      return api.rebalancePreview(userId);
+    },
   });
 
   const refreshBalances = () => {

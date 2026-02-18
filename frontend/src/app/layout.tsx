@@ -17,8 +17,6 @@ const jetbrains = JetBrains_Mono({
   weight: ["400", "500", "600"],
 });
 
-export const dynamic = 'force-dynamic';
-
 export const metadata: Metadata = {
   title: "NectarFi | AI DeFi Yield Agent on BNB Chain",
   description: "AI-powered DeFi yield optimization across Venus, Aave, and Lista on BNB Chain. Harvest the best yields automatically.",

@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import { useAgent } from '@/hooks/use-agent';
 import { TOKEN_LOGOS, PROTOCOL_LOGOS } from '@/lib/logos';
 import { Skeleton } from '@/components/ui/skeleton';
 import { LoadingSplash } from '@/components/loading-splash';
@@ -22,9 +23,9 @@ const TX_TYPE_COLORS: Record<string, string> = {
 const PAGE_SIZE = 20;
 
 export default function HistoryPage() {
-  const { ready, authenticated, user } = usePrivy();
+  const { ready, authenticated } = usePrivy();
+  const { userId } = useAgent();
   const router = useRouter();
-  const [userId, setUserId] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState('');
   const [assetFilter, setAssetFilter] = useState('');
   const [page, setPage] = useState(0);
@@ -32,12 +33,6 @@ export default function HistoryPage() {
   useEffect(() => {
     if (ready && !authenticated) router.push('/');
   }, [ready, authenticated, router]);
-
-  useEffect(() => {
-    if (user?.wallet?.address) {
-      api.auth(user.wallet.address).then((d) => setUserId(d.userId));
-    }
-  }, [user]);
 
   const history = useQuery({
     queryKey: ['txHistory', userId, typeFilter, assetFilter, page],
