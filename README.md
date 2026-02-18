@@ -4,6 +4,8 @@
 
 **Hackathon:** [Good Vibes Only: OpenClaw Edition](https://dorahacks.io/hackathon/goodvibes/detail) | **Track:** DeFi + Agent | **Built by:** [@Magicianafk](https://x.com/Magicianafk)
 
+**Live Demo:** [nectarfi.vercel.app](https://nectarfi.vercel.app)
+
 ---
 
 ## What is NectarFi?
@@ -31,13 +33,25 @@ NectarFi automates the entire yield optimization workflow:
 
 ## On-Chain Proof
 
-**Agent Wallet:** [`0x0B0C986ad1271b32AE11625141076CF71D9Ce8E9`](https://bscscan.com/address/0x0B0C986ad1271b32AE11625141076CF71D9Ce8E9)
+**Agent Wallet (Test):** [`0x0B0C986ad1271b32AE11625141076CF71D9Ce8E9`](https://bscscan.com/address/0x0B0C986ad1271b32AE11625141076CF71D9Ce8E9)
 
-Example transactions executed by the AI agent on BSC mainnet:
-- **Approve USDT for Aave:** [`0x84e4...`](https://bscscan.com/tx/0x84e4c135cd0ac2add20b0d65ecf4fd80e5bf7a04b78f2779d5c7f6a4b4b55e50)
-- **Supply 5 USDT to Aave:** [`0x88ac...`](https://bscscan.com/tx/0x88acf2cd3ba0d5f8a0c5c3a0e5ffa27f7ac7c2b6d1e3f4a5b6c7d8e9f0a1b2c3)
+Verified transactions executed autonomously by the AI agent on BSC mainnet:
 
-The AI analyzed 10 yield opportunities across Venus, Aave, and Lista, then decided to supply USDT to Aave at 1.945% APY. On a subsequent run, it correctly returned "hold" since no idle stablecoins remained.
+| Action | Protocol | Asset | Amount | TX Hash |
+|--------|----------|-------|--------|---------|
+| Supply | Aave V3 | USDC | ~40.49 USDC | [`0xe290dd...`](https://bscscan.com/tx/0xe290dd15a2ffb16ac0a7b88b021c4e329fff35c80d1de0a68d25f6fbe5c1d762) |
+| Deposit | Lista Moolah | WBNB | ~0.030 WBNB | [`0x880def...`](https://bscscan.com/tx/0x880def56d967647d8603c04373855761be01acdd52803fbe56b5e33cd9ae65c0) |
+
+### How It Works End-to-End
+
+1. The AI agent fetches live APY rates from Venus, Aave V3, and Lista via on-chain reads + DeFiLlama enrichment
+2. GPT-5.2 analyzes the user's idle wallet balances, current positions, and all yield opportunities
+3. It returns structured JSON actions (e.g. "supply 40.49 USDC to Aave at 1.82% APY")
+4. The backend executor approves tokens and executes the supply/deposit transactions via Privy server wallet
+5. All decisions and transactions are logged to the activity feed in real-time
+
+**Example AI reasoning (from real rebalance):**
+> "USDT earns the most on Aave at 1.97% (higher than Venus 0.23%). For BNB, Lista offers the best WBNB yield at 0.81%. Supply 100% of idle USDT to Aave. Supply idle BNB as WBNB to Lista, leaving 0.005 BNB for gas."
 
 ---
 
@@ -90,18 +104,20 @@ The AI analyzed 10 yield opportunities across Venus, Aave, and Lista, then decid
 ## Features
 
 ### AI Agent
-- **GPT-5.2 Investment Decisions** — Analyzes wallet balances, positions, and yield opportunities; returns structured JSON actions (supply, withdraw, rebalance, swap_and_supply, hold)
-- **Multi-Protocol Yield Optimization** — Venus, Aave V3, Lista Moolah lending
+- **GPT-5.2 Investment Decisions** — Analyzes wallet balances, positions, and yield opportunities using a 3-step framework (Opportunities → Execution → Review); returns structured JSON actions
+- **Multi-Protocol Yield Optimization** — Deploys across Venus, Aave V3, and Lista Moolah lending pools
+- **APY Trend Analysis** — Tracks 7-day APY trends (rising/falling/stable) and volatility to avoid chasing spikes
+- **6-Factor Scoring** — Ranks opportunities by APY, TVL safety, protocol trust, trend stability, diversification, and gas efficiency
 - **Automated Rebalancing** — Moves funds between protocols when APY differential exceeds threshold
 - **Cross-Asset Swaps** — Swaps stablecoins via PancakeSwap V3 when better yields exist on different tokens
 - **Risk-Aware Diversification** — Splits across protocols, respects max allocation limits
-- **Conservative Gas Management** — Maintains BNB reserves for transaction fees
+- **Conservative Gas Management** — Maintains BNB reserves for transaction fees, skips dust deployments (<$1)
 
 ### Dashboard
-- **Real-Time Portfolio** — Live balances, on-chain positions, P&L tracking
+- **Real-Time Portfolio** — Live balances, on-chain positions, P&L tracking with token logos
 - **Activity Feed** — WebSocket-powered live event stream (AI decisions, executions, errors)
 - **Analytics Charts** — Portfolio value over time, APY trends, allocation pie chart (Recharts)
-- **Yield Table** — All opportunities ranked by score with DeFiLlama enrichment
+- **Yield Table** — All opportunities ranked by composite score with DeFiLlama enrichment
 - **Token Swap** — PancakeSwap V3 integration with live prices and percentage presets
 - **Transaction History** — Filterable, paginated, with CSV export and BscScan links
 
@@ -147,8 +163,8 @@ The AI analyzed 10 yield opportunities across Venus, Aave, and Lista, then decid
 ### 1. Clone
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/nectarfi.git
-cd nectarfi
+git clone https://github.com/Magicianhax/NectarFi.git
+cd NectarFi
 ```
 
 ### 2. Backend Setup
@@ -192,7 +208,7 @@ npm run dev
 2. Connect wallet via Privy
 3. Deposit tokens to your agent wallet
 4. Configure settings (risk level, protocols, assets)
-5. Click "Rebalance Now" or start the AI agent for autonomous operation
+5. Click "Rebalance Now" or let the AI agent operate autonomously every 30 minutes
 6. Monitor via dashboard, activity feed, and analytics
 
 ---
@@ -200,7 +216,7 @@ npm run dev
 ## Project Structure
 
 ```
-nectarfi/
+NectarFi/
 ├── agent-backend/
 │   └── src/
 │       ├── abis/           # Contract ABIs (Venus, Aave, Lista, ERC20)
@@ -225,11 +241,14 @@ nectarfi/
 
 ## How AI is Used
 
-NectarFi uses **OpenAI GPT-5.2** for:
+NectarFi uses **OpenAI GPT-5.2** as the investment decision engine:
 
-1. **Investment Decisions** — Given wallet balances, current positions, and yield opportunities, GPT-5.2 returns structured JSON with optimal actions (supply, rebalance, swap_and_supply, hold). It considers risk level, diversification, gas costs, and protocol safety.
+1. **Investment Decisions** — Given wallet balances, current positions, APY trends, and yield opportunities, GPT-5.2 returns structured JSON with optimal actions (supply, withdraw, rebalance, swap_and_supply, hold). It evaluates risk level, diversification, gas costs, trend direction, and protocol safety.
 
-2. **Rebalance Analysis** — Evaluates whether moving funds between protocols is warranted based on sustained APY differentials.
+2. **3-Step Analysis Framework:**
+   - **Step 1 (Opportunities):** Identify the best APY for each idle asset, considering trend direction and TVL safety
+   - **Step 2 (Execution):** Create specific supply/rebalance/swap actions, respecting gas reserves and dust thresholds
+   - **Step 3 (Review):** Verify no idle funds remain, all actions are valid, no protocol limits exceeded
 
 3. **Daily Summaries** — Generates natural language portfolio performance reports.
 
@@ -242,9 +261,10 @@ The AI operates within strict guardrails: whitelisted protocols only, configurab
 This project was built with extensive AI assistance using **Claude Code (Opus 4.6)**:
 - Architecture design and protocol adapter implementation
 - Full backend implementation (23 source files)
-- Frontend dashboard with skeuomorphic dark theme
+- Frontend dashboard with skeuomorphic dark theme (13 source files + 10 UI components)
 - Real-time WebSocket activity feed
 - On-chain testing and debugging on BSC mainnet
+- End-to-end AI rebalance flow verified with real funds
 
 ---
 
