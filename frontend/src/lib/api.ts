@@ -31,7 +31,10 @@ async function fetchApi(path: string, options?: RequestInit) {
       ...(options?.headers as Record<string, string> || {}),
     },
   });
-  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({} as Record<string, unknown>));
+    throw new Error((body as Record<string, string>).error || `API error: ${res.status}`);
+  }
   return res.json();
 }
 

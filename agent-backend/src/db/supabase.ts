@@ -36,10 +36,14 @@ export async function getOrCreateUser(eoaAddress: string) {
 }
 
 export async function updateAgentWallet(userId: string, walletId: string, walletAddress: string) {
-  await supabase
+  const { error } = await supabase
     .from('users')
     .update({ agent_wallet_id: walletId, agent_wallet_address: walletAddress })
     .eq('id', userId);
+  if (error) {
+    console.error('[DB] updateAgentWallet error:', error);
+    throw error;
+  }
 }
 
 // Get user's agent wallet info

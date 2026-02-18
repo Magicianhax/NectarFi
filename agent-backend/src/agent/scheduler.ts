@@ -3,7 +3,7 @@ import { formatUnits, parseUnits, encodeFunctionData } from 'viem';
 import { fetchBscYields } from '../data/defillama.js';
 import { fetchAllYields, getWalletBalances, getOnchainPositions } from '../data/onchain.js';
 import { scoreOpportunity, evaluateRebalance } from './evaluator.js';
-import { executeRebalance, deployFunds } from './executor.js';
+import { executeRebalance, deployFunds, getProtocolAdapter } from './executor.js';
 import { makeInvestmentDecision, generateDailySummary } from '../ai/openai.js';
 import { createSendTxFn } from '../wallet/privy.js';
 import { getUserPositions, upsertPosition, logTransaction, saveActivity, getRecentActivity, getUserSettings, saveYieldSnapshot, savePortfolioSnapshot, supabase, getApyTrends, getRecentDecisions, getPositionAges, getUserWallet } from '../db/supabase.js';
@@ -480,12 +480,18 @@ export async function runAiRebalance(userId?: string, dryRun = false): Promise<{
 
     if (action.type === 'rebalance' && action.fromProtocol) {
       try {
-        const freshBal2 = await getWalletBalances(agentAddr);
-        const balance = freshBal2.find(b => b.symbol === action.asset);
-        const decimals = balance?.decimals || 18;
-        const amount = balance ? (balance.balance * BigInt(Math.round(Number(action.amountPercent) || 0))) / 100n : 0n;
+        // Get position balance from source protocol (NOT idle wallet balance)
+        const positions = await getOnchainPositions(agentAddr);
+        const position = positions.find(p => p.protocol === action.fromProtocol && p.asset === action.asset);
+        if (!position || position.formatted < 0.01) {
+          results.push({ type: 'rebalance', asset: action.asset, protocol: action.protocol, error: `No ${action.asset} position in ${action.fromProtocol}` });
+          continue;
+        }
+        const decimals = position.decimals;
+        const positionBalance = BigInt(position.balance);
+        const amount = (positionBalance * BigInt(Math.round(Number(action.amountPercent) || 0))) / 100n;
 
-        console.log(`[REBALANCE] Moving ${formatUnits(amount, decimals)} ${action.asset} from ${action.fromProtocol} to ${action.protocol}`);
+        console.log(`[REBALANCE] Moving ${formatUnits(amount, decimals)} ${action.asset} from ${action.fromProtocol} to ${action.protocol} (position: ${position.formatted.toFixed(4)})`);
 
         const fromOpp = latestYields.find(y => y.asset === action.asset && y.protocol === action.fromProtocol);
         const toOpp = latestYields.find(y => y.asset === action.asset && y.protocol === action.protocol);
@@ -579,6 +585,10 @@ export async function runAiRebalance(userId?: string, dryRun = false): Promise<{
           description: `Swapping ${parseFloat(swapFormatted).toFixed(2)} ${action.fromAsset} to ${action.asset} via PancakeSwap, then depositing to ${action.protocol}`,
         });
 
+        // Track pre-swap balance of target token so we only supply the swap output
+        const preSwapTarget = freshBal.find(b => b.symbol === action.asset);
+        const preSwapAmount = preSwapTarget?.balance || 0n;
+
         // Step 1: Swap via PancakeSwap
         const swapTxHash = await swapTokens(
           fromAssetConfig.address,
@@ -590,7 +600,7 @@ export async function runAiRebalance(userId?: string, dryRun = false): Promise<{
         );
         console.log(`[REBALANCE] Swap success: ${swapTxHash}`);
 
-        // Step 2: Read new balance of target token and supply it
+        // Step 2: Read new balance of target token and supply ONLY the swap output
         const newBalances = await getWalletBalances(agentAddr);
         const targetBalance = newBalances.find(b => b.symbol === action.asset);
         if (!targetBalance || targetBalance.balance === 0n) {
@@ -598,7 +608,9 @@ export async function runAiRebalance(userId?: string, dryRun = false): Promise<{
           continue;
         }
 
-        const supplyAmount = targetBalance.balance;
+        // Only supply the amount received from the swap, not any pre-existing balance
+        const swapOutput = targetBalance.balance - preSwapAmount;
+        const supplyAmount = swapOutput > 0n ? swapOutput : targetBalance.balance;
         const supplyFormatted = formatUnits(supplyAmount, targetBalance.decimals);
         console.log(`[REBALANCE] Supplying ${supplyFormatted} ${action.asset} to ${action.protocol}`);
 

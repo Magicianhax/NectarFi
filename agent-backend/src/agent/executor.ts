@@ -12,6 +12,10 @@ const adapters: Record<string, ProtocolAdapter> = {
   lista: listaAdapter,
 };
 
+export function getProtocolAdapter(protocol: string): ProtocolAdapter | undefined {
+  return adapters[protocol];
+}
+
 export interface ExecutionResult {
   action: RebalanceAction;
   withdrawTxHash: string;
