@@ -76,8 +76,8 @@ export default function Dashboard() {
   const totalValue = totalPositionValue + totalBalanceUsd;
   const dailyYield = positions.reduce((sum, p) => sum + (p.valueUsd * p.apy / 100 / 365), 0);
   const avgApy = totalPositionValue > 0 ? (dailyYield * 365 / totalPositionValue) * 100 : 0;
-  const totalDeposited = (portfolio.data?.positions || []).reduce((sum: number, p: { deposited_amount?: number }) => sum + (p.deposited_amount || 0), 0);
-  const totalEarned = totalDeposited > 0 ? Math.max(0, totalPositionValue - totalDeposited) : 0;
+  const totalDeposited = (portfolio.data as { totalDeposited?: number })?.totalDeposited || 0;
+  const totalEarned = totalDeposited > 0 ? Math.max(0, totalValue - totalDeposited) : 0;
 
   const isAgentRunning = agentStatus.data ?? false;
   const nonZeroBalances = balances.filter((b) => {

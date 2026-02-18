@@ -122,7 +122,15 @@ router.get('/portfolio/:userId', requireAuth, async (req: AuthenticatedRequest, 
     const userId = req.verifiedUserId!;
     const positions = await getUserPositions(userId);
     const history = await getPortfolioHistory(userId);
-    res.json({ positions, history });
+    // Calculate total deposited from actual deposit transactions (not from positions table
+    // which gets overwritten on each upsert)
+    const { data: depositTxs } = await supabase
+      .from('transactions')
+      .select('amount')
+      .eq('user_id', userId)
+      .eq('type', 'deposit');
+    const totalDeposited = (depositTxs || []).reduce((sum: number, tx: { amount: number }) => sum + (tx.amount || 0), 0);
+    res.json({ positions, history, totalDeposited });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch portfolio' });
   }
@@ -273,6 +281,16 @@ router.get('/positions/:address', async (req, res) => {
     }
     const checksummed = getAddress(address);
     const positions = await getOnchainPositions(checksummed);
+    // Enrich positions with yields data (fallback for protocols that return 0% APY like Lista)
+    const yields = getLatestYields();
+    for (const pos of positions) {
+      if (pos.apy === 0 && yields.length > 0) {
+        const match = yields.find(y => y.protocol === pos.protocol && y.asset === pos.asset);
+        if (match && match.supplyApy > 0) {
+          pos.apy = match.supplyApy;
+        }
+      }
+    }
     res.json({ positions });
   } catch (error) {
     console.error('Positions fetch error:', error);
