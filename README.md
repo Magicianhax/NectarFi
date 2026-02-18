@@ -33,16 +33,15 @@ NectarFi automates the entire yield optimization workflow:
 
 ## On-Chain Proof
 
-**Agent Wallet (Test):** [`0x0B0C986ad1271b32AE11625141076CF71D9Ce8E9`](https://bscscan.com/address/0x0B0C986ad1271b32AE11625141076CF71D9Ce8E9)
+**Agent Wallet:** [`0x380742dC8c1572406be32CD4F4b3CfaDF22293f6`](https://bscscan.com/address/0x380742dC8c1572406be32CD4F4b3CfaDF22293f6)
 
 Verified transactions executed autonomously by the AI agent on BSC mainnet:
 
 | Action | Protocol | Asset | Amount | TX Hash |
 |--------|----------|-------|--------|---------|
-| Approve | Aave V3 | USDT | Unlimited | [`0x84e4...`](https://bscscan.com/tx/0x84e4c48db3a3b7a7be6aefe94e5c7b3b1af3b59b79c1bb8be4a5d4af7e7f5e5a) |
-| Supply | Aave V3 | USDT | 5.0 USDT | [`0x88ac...`](https://bscscan.com/tx/0x88ac6e74db27b48fc35ba6c9e7f6cd8d3fcf5ed6c75fa5a4b3b9f4f4f5e6d7c8) |
-| Supply | Aave V3 | USDC | ~40.49 USDC | [`0xe290dd...`](https://bscscan.com/tx/0xe290dd15a2ffb16ac0a7b88b021c4e329fff35c80d1de0a68d25f6fbe5c1d762) |
-| Deposit | Lista Moolah | WBNB | ~0.030 WBNB | [`0x880def...`](https://bscscan.com/tx/0x880def56d967647d8603c04373855761be01acdd52803fbe56b5e33cd9ae65c0) |
+| Deposit | Lista Moolah | WBNB | ~0.036 WBNB | [`0x928e0c...`](https://bscscan.com/tx/0x928e0c52f7424c4294794c6c59cab5aa0cd8ee0518b46ded66bed098792f8bbc) |
+| Deposit | Lista Moolah | USD1 | ~67.05 USD1 | [`0xf255bd...`](https://bscscan.com/tx/0xf255bd9475684bfbba625179623b875b9fca472e9a9106ce77bc9ee1935e1514) |
+| Swap | PancakeSwap V3 | USD1 → USDC | ~67.06 USDC | [`0x27a229...`](https://bscscan.com/tx/0x27a229617d0ba7795e1b27e995240b975cf7082df289487c3d9e28d546098eb2) |
 
 ### How It Works End-to-End
 
