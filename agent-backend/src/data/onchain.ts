@@ -3,7 +3,6 @@ import { CHAIN, BSC_RPC, VENUS, AAVE, LISTA, ASSETS } from '../config.js';
 import { vTokenAbi } from '../abis/vToken.js';
 import { aavePoolAbi } from '../abis/aavePool.js';
 import { moolahVaultAbi } from '../abis/listaMoolah.js';
-import { listaStakeManagerAbi } from '../abis/listaStakeManager.js';
 import { erc20Abi } from '../abis/erc20.js';
 import type { YieldOpportunity, TokenBalance } from './types.js';
 
@@ -100,25 +99,6 @@ export async function getListaBalance(
   });
 }
 
-// Lista staking: get slisBNB balance in BNB-equivalent terms
-export async function getListaStakingBalance(
-  userAddress: `0x${string}`
-): Promise<bigint> {
-  const slisBnbBalance = await publicClient.readContract({
-    address: LISTA.staking.slisBNB,
-    abi: erc20Abi,
-    functionName: 'balanceOf',
-    args: [userAddress],
-  });
-  if (slisBnbBalance === 0n) return 0n;
-  return publicClient.readContract({
-    address: LISTA.staking.stakeManager,
-    abi: listaStakeManagerAbi,
-    functionName: 'convertSnBnbToBnb',
-    args: [slisBnbBalance],
-  });
-}
-
 // Get all ERC20 balances for agent wallet
 export async function getWalletBalances(walletAddress: `0x${string}`): Promise<TokenBalance[]> {
   const balances: TokenBalance[] = [];
@@ -187,7 +167,7 @@ export async function getOnchainPositions(walletAddress: `0x${string}`): Promise
           valueUsd: formatted * (getCachedPrices()[symbol] || 0),
         });
       }
-    } catch (err) { console.error(`[POSITIONS] Aave ${symbol} read failed:`, err); }
+    } catch {}
   }
 
   // Check Venus vToken balances
@@ -210,7 +190,7 @@ export async function getOnchainPositions(walletAddress: `0x${string}`): Promise
           valueUsd: formatted * (getCachedPrices()[symbol] || 0),
         });
       }
-    } catch (err) { console.error(`[POSITIONS] Venus ${symbol} read failed:`, err); }
+    } catch {}
   }
 
   // Check Lista vault balances
@@ -231,10 +211,8 @@ export async function getOnchainPositions(walletAddress: `0x${string}`): Promise
           valueUsd: formatted * (getCachedPrices()[symbol] || 0),
         });
       }
-    } catch (err) { console.error(`[POSITIONS] Lista ${symbol} read failed:`, err); }
+    } catch {}
   }
-
-  // Lista slisBNB staking disabled — long unstaking period
 
   return positions;
 }
@@ -297,8 +275,6 @@ export async function fetchAllYields(): Promise<YieldOpportunity[]> {
       score: 0,
     });
   }
-
-  // Lista slisBNB staking disabled — long unstaking period
 
   return opportunities;
 }

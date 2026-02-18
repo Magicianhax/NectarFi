@@ -9,7 +9,6 @@ export const TOKEN_LOGOS: Record<string, string> = {
   WETH: `${TW}/assets/0x2170Ed0880ac9A755fd29B2688956BD959F933F8/logo.png`,
   FDUSD: `${TW}/assets/0xc5f0f7b66764F6ec8C8Dff7BA683102295E16409/logo.png`,
   USD1: `${TW}/assets/0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d/logo.png`,
-  slisBNB: `${TW}/assets/0xB0b84D294e0C75A6abe60171b70edEb2EFd14A1B/logo.png`,
 };
 
 export const PROTOCOL_LOGOS: Record<string, string> = {

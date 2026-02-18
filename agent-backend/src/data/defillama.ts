@@ -1,3 +1,25 @@
+// Fetch all BSC yield pools for our whitelisted protocols
+export async function fetchBscYields(): Promise<DefiLlamaPool[]> {
+  const res = await fetch(`${DEFILLAMA_BASE}/pools`);
+  if (!res.ok) throw new Error(`DeFiLlama yields API error: ${res.status}`);
+  const data = await res.json() as { data: DefiLlamaPool[] };
+
+  return data.data.filter(
+    (p) =>
+      p.chain === 'BSC' &&
+      ['venus-core-pool', 'aave-v3', 'lista-lending', 'lista-cdp'].includes(p.project.toLowerCase())
+  );
+}
+
+// Fetch token prices on BSC
+export async function fetchTokenPrices(addresses: string[]): Promise<Record<string, TokenPrice>> {
+  const coins = addresses.map((a) => `bsc:${a}`).join(',');
+  const res = await fetch(`${PRICE_BASE}/prices/current/${coins}`);
+  if (!res.ok) throw new Error(`DeFiLlama prices API error: ${res.status}`);
+  const data = await res.json() as { coins: Record<string, TokenPrice> };
+  return data.coins;
+}
+
 interface DefiLlamaPool {
   pool: string;
   chain: string;
@@ -20,28 +42,6 @@ interface TokenPrice {
 
 const DEFILLAMA_BASE = 'https://yields.llama.fi';
 const PRICE_BASE = 'https://coins.llama.fi';
-
-// Fetch all BSC yield pools for our whitelisted protocols
-export async function fetchBscYields(): Promise<DefiLlamaPool[]> {
-  const res = await fetch(`${DEFILLAMA_BASE}/pools`);
-  if (!res.ok) throw new Error(`DeFiLlama yields API error: ${res.status}`);
-  const data = await res.json() as { data: DefiLlamaPool[] };
-
-  return data.data.filter(
-    (p) =>
-      p.chain === 'BSC' &&
-      ['venus-core-pool', 'aave-v3', 'lista-lending', 'lista-cdp', 'lista-liquid-staking'].includes(p.project.toLowerCase())
-  );
-}
-
-// Fetch token prices on BSC
-export async function fetchTokenPrices(addresses: string[]): Promise<Record<string, TokenPrice>> {
-  const coins = addresses.map((a) => `bsc:${a}`).join(',');
-  const res = await fetch(`${PRICE_BASE}/prices/current/${coins}`);
-  if (!res.ok) throw new Error(`DeFiLlama prices API error: ${res.status}`);
-  const data = await res.json() as { coins: Record<string, TokenPrice> };
-  return data.coins;
-}
 
 // Cached live prices — refreshed every 5 min
 import { ASSETS } from '../config.js';

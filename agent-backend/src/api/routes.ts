@@ -12,7 +12,6 @@ import { getWalletBalances, getOnchainPositions, publicClient } from '../data/on
 import { aaveAdapter } from '../protocols/aave.js';
 import { venusAdapter } from '../protocols/venus.js';
 import { listaAdapter } from '../protocols/lista.js';
-// listaStakingAdapter disabled — long unstaking period
 import { swapTokens } from '../protocols/pancakeswap.js';
 import { getCachedPrices } from '../data/defillama.js';
 import { DEFAULT_SETTINGS, ASSETS } from '../config.js';
@@ -122,14 +121,24 @@ router.get('/portfolio/:userId', requireAuth, async (req: AuthenticatedRequest, 
     const userId = req.verifiedUserId!;
     const positions = await getUserPositions(userId);
     const history = await getPortfolioHistory(userId);
-    // Calculate total deposited from actual deposit transactions (not from positions table
-    // which gets overwritten on each upsert)
-    const { data: depositTxs } = await supabase
+
+    // Calculate total deposited by summing deposits and subtracting withdrawals
+    const { data: deposits } = await supabase
       .from('transactions')
       .select('amount')
       .eq('user_id', userId)
       .eq('type', 'deposit');
-    const totalDeposited = (depositTxs || []).reduce((sum: number, tx: { amount: number }) => sum + (tx.amount || 0), 0);
+
+    const { data: withdrawals } = await supabase
+      .from('transactions')
+      .select('amount')
+      .eq('user_id', userId)
+      .eq('type', 'transfer_to_eoa'); // withdrawals to user wallet
+
+    const totalIn = (deposits || []).reduce((sum, tx) => sum + (tx.amount || 0), 0);
+    const totalOut = (withdrawals || []).reduce((sum, tx) => sum + (tx.amount || 0), 0);
+    const totalDeposited = Math.max(0, totalIn - totalOut);
+
     res.json({ positions, history, totalDeposited });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch portfolio' });
@@ -630,11 +639,23 @@ router.post('/log-deposit', requireAuth, async (req: AuthenticatedRequest, res) 
     const userId = req.verifiedUserId!;
     const { asset, amount, txHash } = req.body;
     if (!asset || !amount) return res.status(400).json({ error: 'asset, amount required' });
+
+    // We expect the frontend to send the amount in TOKEN units (e.g. 1.0 BNB), but we store USD value in DB for consistency.
+    // However, the current implementation blindly stores 'amount'.
+    // If the frontend sends token amount, and we store it as 'amount', then subsequent calculations that sum 'amount'
+    // will be mixing token units with USD if other tx types store USD.
+    // Let's check `logTransaction`: it stores `amount` in `numeric`.
+
+    // To fix "Total Earned" calculation issues, we must ensure we store the USD value of the deposit.
+    const prices = getCachedPrices();
+    const price = prices[asset] || 0;
+    const usdValue = parseFloat(amount) * price;
+
     await logTransaction(userId, {
       type: 'deposit',
       to_protocol: 'agent_wallet',
       asset,
-      amount: parseFloat(amount),
+      amount: usdValue > 0 ? usdValue : parseFloat(amount), // Fallback to raw amount if price missing (better than 0)
       tx_hash: txHash || null,
     });
     res.json({ success: true });
