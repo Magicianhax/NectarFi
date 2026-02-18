@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getAddress, encodeFunctionData, parseUnits } from 'viem';
+import { getAddress, encodeFunctionData, parseUnits, formatUnits } from 'viem';
 import { getLatestYields, runAiRebalance, getActivityLog, broadcast, startAgentAndRun, stopAgent as stopAgentScheduler, isAgentRunning } from '../agent/scheduler.js';
 import { createAgentWallet, createSendTxFn, exportWalletPrivateKey, verifyPrivyAuth } from '../wallet/privy.js';
 import {
@@ -530,8 +530,14 @@ router.post('/swap', requireAuth, async (req: AuthenticatedRequest, res) => {
 
     // WBNB → BNB (just unwrap)
     } else if (tokenIn === 'WBNB' && tokenOut === 'BNB') {
-      console.log(`[SWAP] Unwrapping ${amount} WBNB -> BNB`);
-      const data = encodeFunctionData({ abi: wbnbAbi, functionName: 'withdraw', args: [amountIn] });
+      // Check actual WBNB balance and clamp amount to avoid revert
+      const wbnbBal = await publicClient.readContract({
+        address: wbnbAddress, abi: erc20Abi, functionName: 'balanceOf', args: [agentAddr],
+      });
+      if (wbnbBal === 0n) return res.status(400).json({ error: 'No WBNB balance to unwrap' });
+      const unwrapAmt = amountIn > wbnbBal ? wbnbBal : amountIn;
+      console.log(`[SWAP] Unwrapping ${formatUnits(unwrapAmt, 18)} WBNB -> BNB (requested: ${amount}, available: ${formatUnits(wbnbBal, 18)})`);
+      const data = encodeFunctionData({ abi: wbnbAbi, functionName: 'withdraw', args: [unwrapAmt] });
       txHash = await sendTx({ to: wbnbAddress, data });
 
     // BNB → token (wrap BNB to WBNB first, then swap WBNB → token)

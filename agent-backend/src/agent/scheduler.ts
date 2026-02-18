@@ -374,8 +374,8 @@ export async function runAiRebalance(userId?: string, dryRun = false): Promise<{
         const freshBalances = await getWalletBalances(agentAddr);
         let balance = freshBalances.find(b => b.symbol === action.asset);
 
-        // Auto-wrap: if supplying WBNB but no WBNB balance, wrap native BNB (minus gas reserve)
-        if (action.asset === 'WBNB' && (!balance || balance.balance === 0n)) {
+        // Auto-wrap: if supplying WBNB, wrap any available native BNB (minus gas reserve)
+        if (action.asset === 'WBNB') {
           const nativeBnb = freshBalances.find(b => b.symbol === 'BNB');
           const gasReserve = BigInt(5e15); // 0.005 BNB for gas
           if (nativeBnb && nativeBnb.balance > gasReserve) {
