@@ -233,7 +233,9 @@ Analyze using the 3-step framework. What actions should we take?`,
     // Validate and sanitize each action from AI output
     const KNOWN_PROTOCOLS = ['venus', 'aave', 'lista'];
     const validatedActions = (parsed.actions || []).map((a: Record<string, unknown>) => {
-      const pct = Number(a.amountPercent) || 0;
+      // Strip any trailing '%' the AI might add (e.g. "87.34%" → 87.34)
+      const pctRaw = String(a.amountPercent ?? '0').replace('%', '');
+      const pct = Number(pctRaw) || 0;
       return {
         ...a,
         type: typeof a.type === 'string' ? a.type : 'hold',

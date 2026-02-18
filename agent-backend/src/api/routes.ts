@@ -6,20 +6,17 @@ import {
   getOrCreateUser, updateAgentWallet, getUserSettings,
   upsertSettings, getUserPositions, getTransactionHistory,
   getPortfolioHistory, getYieldHistory, logTransaction,
-  getApyTrends,
+  getApyTrends, supabase, getUserWallet,
 } from '../db/supabase.js';
 import { getWalletBalances, getOnchainPositions, publicClient } from '../data/onchain.js';
 import { aaveAdapter } from '../protocols/aave.js';
 import { venusAdapter } from '../protocols/venus.js';
 import { listaAdapter } from '../protocols/lista.js';
 // listaStakingAdapter disabled — long unstaking period
-import { sendTxLocal } from '../wallet/local.js';
 import { swapTokens } from '../protocols/pancakeswap.js';
 import { getCachedPrices } from '../data/defillama.js';
 import { DEFAULT_SETTINGS, ASSETS } from '../config.js';
 import { erc20Abi } from '../abis/erc20.js';
-import { supabase } from '../db/supabase.js';
-import { getAgentAddress } from '../wallet/local.js';
 
 export const router = Router();
 
@@ -317,7 +314,11 @@ router.post('/transfer-to-eoa', requireAuth, async (req: AuthenticatedRequest, r
       return res.status(403).json({ error: 'Can only transfer to your own wallet' });
     }
 
-    const agentAddr = getAgentAddress();
+    // Look up user's Privy agent wallet
+    const userWallet = await getUserWallet(userId);
+    if (!userWallet) return res.status(404).json({ error: 'No agent wallet found' });
+    const agentAddr = userWallet.walletAddress as `0x${string}`;
+    const sendTx = createSendTxFn(userWallet.walletId, userWallet.ownerAuthKey);
     const recipient = getAddress(toAddress);
 
     if (symbol === 'BNB') {
@@ -333,7 +334,7 @@ router.post('/transfer-to-eoa', requireAuth, async (req: AuthenticatedRequest, r
       }
 
       console.log(`[TRANSFER] Sending ${sendAmount} BNB to ${recipient}`);
-      const txHash = await sendTxLocal({ to: recipient, data: '0x' as `0x${string}`, value: sendAmount });
+      const txHash = await sendTx({ to: recipient, data: '0x' as `0x${string}`, value: sendAmount });
       console.log(`[TRANSFER] Success: ${txHash}`);
       const bnbFormatted = (Number(sendAmount) / 1e18).toFixed(4);
       broadcast('transfer_to_eoa', {
@@ -372,7 +373,7 @@ router.post('/transfer-to-eoa', requireAuth, async (req: AuthenticatedRequest, r
     });
 
     console.log(`[TRANSFER] Sending ${sendAmount} ${symbol} to ${recipient}`);
-    const txHash = await sendTxLocal({ to: asset.address, data });
+    const txHash = await sendTx({ to: asset.address, data });
     console.log(`[TRANSFER] Success: ${txHash}`);
     const tokenFormatted = (Number(sendAmount) / 10 ** asset.decimals).toFixed(2);
     broadcast('transfer_to_eoa', {
@@ -401,14 +402,18 @@ router.post('/withdraw', requireAuth, async (req: AuthenticatedRequest, res) => 
     const adapter = adapters[protocol];
     if (!adapter) return res.status(400).json({ error: `Unknown protocol: ${protocol}` });
 
-    const agentAddr = getAgentAddress();
+    // Look up user's Privy agent wallet
+    const userWallet = await getUserWallet(userId);
+    if (!userWallet) return res.status(404).json({ error: 'No agent wallet found' });
+    const agentAddr = userWallet.walletAddress as `0x${string}`;
+    const sendTx = createSendTxFn(userWallet.walletId, userWallet.ownerAuthKey);
 
     // Get full balance for this position
     const balance = await adapter.getBalance(asset, agentAddr);
     if (balance === 0n) return res.status(400).json({ error: 'No balance to withdraw' });
 
     console.log(`[WITHDRAW] Withdrawing ${asset} from ${protocol} (balance: ${balance})`);
-    const txHash = await adapter.withdraw(asset, balance, agentAddr, sendTxLocal);
+    const txHash = await adapter.withdraw(asset, balance, agentAddr, sendTx);
     console.log(`[WITHDRAW] Success: ${txHash}`);
     const withdrawFormatted = (Number(balance) / 1e18).toFixed(2);
     broadcast('position_withdrawn', {
@@ -430,7 +435,13 @@ router.post('/withdraw', requireAuth, async (req: AuthenticatedRequest, res) => 
 router.post('/wind-down', requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
     const userId = req.verifiedUserId!;
-    const agentAddr = getAgentAddress();
+
+    // Look up user's Privy agent wallet
+    const userWallet = await getUserWallet(userId);
+    if (!userWallet) return res.status(404).json({ error: 'No agent wallet found' });
+    const agentAddr = userWallet.walletAddress as `0x${string}`;
+    const sendTx = createSendTxFn(userWallet.walletId, userWallet.ownerAuthKey);
+
     const positions = await getOnchainPositions(agentAddr);
 
     if (positions.length === 0) {
@@ -455,7 +466,7 @@ router.post('/wind-down', requireAuth, async (req: AuthenticatedRequest, res) =>
         if (balance === 0n) continue;
 
         console.log(`[WIND-DOWN] Withdrawing ${pos.asset} from ${pos.protocol} (balance: ${balance})`);
-        const txHash = await adapter.withdraw(pos.asset, balance, agentAddr, sendTxLocal);
+        const txHash = await adapter.withdraw(pos.asset, balance, agentAddr, sendTx);
         const formatted = (Number(balance) / 1e18).toFixed(2);
         console.log(`[WIND-DOWN] Success: ${txHash}`);
 
@@ -496,7 +507,12 @@ router.post('/swap', requireAuth, async (req: AuthenticatedRequest, res) => {
     const amountNum = parseFloat(amount);
     if (isNaN(amountNum) || amountNum <= 0) return res.status(400).json({ error: 'Amount must be a positive number' });
 
-    const agentAddr = getAgentAddress();
+    // Look up user's Privy agent wallet
+    const userWallet = await getUserWallet(userId);
+    if (!userWallet) return res.status(404).json({ error: 'No agent wallet found' });
+    const agentAddr = userWallet.walletAddress as `0x${string}`;
+    const sendTx = createSendTxFn(userWallet.walletId, userWallet.ownerAuthKey);
+
     const amountIn = parseUnits(String(amount), 18);
     const wbnbAddress = ASSETS.WBNB.address;
     const wbnbAbi = [
@@ -510,13 +526,13 @@ router.post('/swap', requireAuth, async (req: AuthenticatedRequest, res) => {
     if (tokenIn === 'BNB' && tokenOut === 'WBNB') {
       console.log(`[SWAP] Wrapping ${amount} BNB -> WBNB`);
       const data = encodeFunctionData({ abi: wbnbAbi, functionName: 'deposit' });
-      txHash = await sendTxLocal({ to: wbnbAddress, data, value: amountIn });
+      txHash = await sendTx({ to: wbnbAddress, data, value: amountIn });
 
     // WBNB → BNB (just unwrap)
     } else if (tokenIn === 'WBNB' && tokenOut === 'BNB') {
       console.log(`[SWAP] Unwrapping ${amount} WBNB -> BNB`);
       const data = encodeFunctionData({ abi: wbnbAbi, functionName: 'withdraw', args: [amountIn] });
-      txHash = await sendTxLocal({ to: wbnbAddress, data });
+      txHash = await sendTx({ to: wbnbAddress, data });
 
     // BNB → token (wrap BNB to WBNB first, then swap WBNB → token)
     } else if (tokenIn === 'BNB') {
@@ -524,16 +540,16 @@ router.post('/swap', requireAuth, async (req: AuthenticatedRequest, res) => {
       if (!assetOut) return res.status(400).json({ error: `Unknown token: ${tokenOut}` });
       console.log(`[SWAP] Wrapping ${amount} BNB -> WBNB first`);
       const wrapData = encodeFunctionData({ abi: wbnbAbi, functionName: 'deposit' });
-      await sendTxLocal({ to: wbnbAddress, data: wrapData, value: amountIn });
+      await sendTx({ to: wbnbAddress, data: wrapData, value: amountIn });
       console.log(`[SWAP] Now swapping WBNB -> ${tokenOut}`);
-      txHash = await swapTokens(wbnbAddress, assetOut.address, amountIn, agentAddr, sendTxLocal, 100);
+      txHash = await swapTokens(wbnbAddress, assetOut.address, amountIn, agentAddr, sendTx, 100);
 
     // token → BNB (swap token → WBNB, then unwrap)
     } else if (tokenOut === 'BNB') {
       const assetIn = ASSETS[tokenIn as keyof typeof ASSETS];
       if (!assetIn) return res.status(400).json({ error: `Unknown token: ${tokenIn}` });
       console.log(`[SWAP] Swapping ${amount} ${tokenIn} -> WBNB first`);
-      txHash = await swapTokens(assetIn.address, wbnbAddress, amountIn, agentAddr, sendTxLocal, 100);
+      txHash = await swapTokens(assetIn.address, wbnbAddress, amountIn, agentAddr, sendTx, 100);
       // Read WBNB balance and unwrap
       const wbnbBal = await publicClient.readContract({
         address: wbnbAddress, abi: erc20Abi, functionName: 'balanceOf', args: [agentAddr],
@@ -541,7 +557,7 @@ router.post('/swap', requireAuth, async (req: AuthenticatedRequest, res) => {
       if (wbnbBal > 0n) {
         console.log(`[SWAP] Unwrapping ${wbnbBal} WBNB -> BNB`);
         const unwrapData = encodeFunctionData({ abi: wbnbAbi, functionName: 'withdraw', args: [wbnbBal] });
-        await sendTxLocal({ to: wbnbAddress, data: unwrapData });
+        await sendTx({ to: wbnbAddress, data: unwrapData });
       }
 
     // ERC20 → ERC20 (normal swap)
@@ -550,7 +566,7 @@ router.post('/swap', requireAuth, async (req: AuthenticatedRequest, res) => {
       const assetOut = ASSETS[tokenOut as keyof typeof ASSETS];
       if (!assetIn || !assetOut) return res.status(400).json({ error: `Unknown token: ${!assetIn ? tokenIn : tokenOut}` });
       console.log(`[SWAP] ${amount} ${tokenIn} -> ${tokenOut}`);
-      txHash = await swapTokens(assetIn.address, assetOut.address, parseUnits(String(amount), assetIn.decimals), agentAddr, sendTxLocal, 100);
+      txHash = await swapTokens(assetIn.address, assetOut.address, parseUnits(String(amount), assetIn.decimals), agentAddr, sendTx, 100);
     }
 
     console.log(`[SWAP] Success: ${txHash}`);
