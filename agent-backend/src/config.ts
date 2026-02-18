@@ -16,7 +16,6 @@ export const ASSETS = {
   WBNB: { address: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c' as const, decimals: 18, symbol: 'WBNB' },
   FDUSD: { address: '0xc5f0f7b66764F6ec8C8Dff7BA683102295E16409' as const, decimals: 18, symbol: 'FDUSD' },
   USD1: { address: '0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d' as const, decimals: 18, symbol: 'USD1' },
-  slisBNB: { address: '0xB0b84D294e0C75A6abe60171b70edEb2EFd14A1B' as const, decimals: 18, symbol: 'slisBNB' },
 } as const;
 
 // Venus Protocol
@@ -51,10 +50,6 @@ export const LISTA = {
     USD1: '0xfa27f172e0b6ebcEF9c51ABf817E2cb142FbE627' as const,
   },
   oracle: '0x21650E416dC6C89486B2E654c86cC2c36c597b58' as const,
-  staking: {
-    stakeManager: '0x1adB950d8bB3dA4bE104211D5AB038628e477fE6' as const,
-    slisBNB: '0xB0b84D294e0C75A6abe60171b70edEb2EFd14A1B' as const,
-  },
 };
 
 // PancakeSwap (swap only)
@@ -68,7 +63,6 @@ export const PROTOCOL_TRUST: Record<string, number> = {
   venus: 95,
   aave: 98,
   lista: 80,
-  // 'lista-staking': 82, // Disabled — long unstaking period
   pendle: 85,
 };
 
