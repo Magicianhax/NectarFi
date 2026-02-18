@@ -43,14 +43,14 @@ export async function updateAgentWallet(userId: string, walletId: string, wallet
 }
 
 // Get user's agent wallet info
-export async function getUserWallet(userId: string): Promise<{ walletId: string; walletAddress: string } | null> {
+export async function getUserWallet(userId: string): Promise<{ walletId: string; walletAddress: string; ownerAuthKey: string } | null> {
   const { data } = await supabase
     .from('users')
-    .select('agent_wallet_id, agent_wallet_address')
+    .select('agent_wallet_id, agent_wallet_address, owner_auth_key')
     .eq('id', userId)
     .maybeSingle();
-  if (!data?.agent_wallet_id || !data?.agent_wallet_address) return null;
-  return { walletId: data.agent_wallet_id, walletAddress: data.agent_wallet_address };
+  if (!data?.agent_wallet_id || !data?.agent_wallet_address || !data?.owner_auth_key) return null;
+  return { walletId: data.agent_wallet_id, walletAddress: data.agent_wallet_address, ownerAuthKey: data.owner_auth_key };
 }
 
 // Settings operations

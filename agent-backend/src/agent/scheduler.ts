@@ -191,7 +191,7 @@ export async function runAiRebalance(userId?: string, dryRun = false): Promise<{
   if (!userWallet) throw new Error('No agent wallet found for user');
 
   const agentAddr = userWallet.walletAddress as `0x${string}`;
-  const sendTx = createSendTxFn(userWallet.walletId);
+  const sendTx = createSendTxFn(userWallet.walletId, userWallet.ownerAuthKey);
   console.log(`[REBALANCE] Starting AI-driven rebalance for ${agentAddr}`);
 
   // Load user settings from DB (fall back to defaults)

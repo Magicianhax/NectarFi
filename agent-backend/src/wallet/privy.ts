@@ -81,26 +81,82 @@ export async function createAgentWallet(userId: string): Promise<{
   return { address: wallet.address, walletId: wallet.id, ownerPrivateKey: privB64 };
 }
 
-// Send a transaction from the agent wallet
+// Build Privy authorization signature for a wallet API request
+function buildAuthorizationSignature(
+  ownerAuthKey: string,
+  method: string,
+  url: string,
+  bodyObj: Record<string, unknown>,
+): string {
+  const appId = process.env.PRIVY_APP_ID!;
+  const privKeyDer = Buffer.from(ownerAuthKey, 'base64');
+  const markerIdx = privKeyDer.indexOf(Buffer.from([0x04, 0x20]));
+  const scalar = privKeyDer.subarray(markerIdx + 2, markerIdx + 34);
+  const privKeyScalar = p256.utils.normPrivateKeyToScalar(scalar);
+
+  const payload = {
+    version: 1,
+    method,
+    url,
+    body: bodyObj,
+    headers: { 'privy-app-id': appId },
+  };
+
+  const canonicalized = Buffer.from(canonicalize(payload)!);
+  const hash = sha256(canonicalized);
+  const sig = p256.sign(hash, privKeyScalar).toDERRawBytes();
+  return Buffer.from(sig).toString('base64');
+}
+
+// Send a transaction from the agent wallet via REST API (with per-wallet owner auth signature)
 export async function sendTransaction(
   walletId: string,
+  ownerAuthKey: string,
   tx: { to: `0x${string}`; data: `0x${string}`; value?: bigint }
 ): Promise<string> {
-  const result = await privy.walletApi.ethereum.sendTransaction({
-    walletId,
-    caip2: 'eip155:56', // BSC mainnet
-    transaction: {
-      to: tx.to,
-      data: tx.data,
-      value: tx.value ? `0x${tx.value.toString(16)}` : undefined,
+  const appId = process.env.PRIVY_APP_ID!;
+  const appSecret = process.env.PRIVY_APP_SECRET!;
+  const basicAuth = Buffer.from(`${appId}:${appSecret}`).toString('base64');
+
+  const rpcUrl = `https://api.privy.io/v1/wallets/${walletId}/rpc`;
+  const bodyObj: Record<string, unknown> = {
+    method: 'eth_sendTransaction',
+    caip2: 'eip155:56',
+    params: {
+      transaction: {
+        to: tx.to,
+        data: tx.data,
+        value: tx.value ? `0x${tx.value.toString(16)}` : undefined,
+      },
     },
+  };
+
+  const sigB64 = buildAuthorizationSignature(ownerAuthKey, 'POST', rpcUrl, bodyObj);
+
+  const res = await fetch(rpcUrl, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Basic ${basicAuth}`,
+      'Content-Type': 'application/json',
+      'privy-app-id': appId,
+      'privy-authorization-signature': sigB64,
+    },
+    body: JSON.stringify(bodyObj),
   });
 
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Privy sendTransaction failed: ${res.status} ${err}`);
+  }
+
+  const data = await res.json() as { data: { hash: string } };
+  const txHash = data.data.hash as `0x${string}`;
+
   // Wait for on-chain confirmation before returning (critical for chained ops like approve→supply)
-  const receipt = await publicClient.waitForTransactionReceipt({ hash: result.hash as `0x${string}` });
-  if (receipt.status === 'reverted') throw new Error(`Transaction reverted: ${result.hash}`);
-  console.log(`[PRIVY-TX] Confirmed: ${result.hash} (gas: ${receipt.gasUsed})`);
-  return result.hash;
+  const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+  if (receipt.status === 'reverted') throw new Error(`Transaction reverted: ${txHash}`);
+  console.log(`[PRIVY-TX] Confirmed: ${txHash} (gas: ${receipt.gasUsed})`);
+  return txHash;
 }
 
 // Get wallet address by wallet ID
@@ -109,10 +165,10 @@ export async function getWalletAddress(walletId: string): Promise<string> {
   return wallet.address;
 }
 
-// Create a sendTx function bound to a specific wallet
-export function createSendTxFn(walletId: string) {
+// Create a sendTx function bound to a specific wallet + auth key
+export function createSendTxFn(walletId: string, ownerAuthKey: string) {
   return async (tx: { to: `0x${string}`; data: `0x${string}`; value?: bigint }) => {
-    return sendTransaction(walletId, tx);
+    return sendTransaction(walletId, ownerAuthKey, tx);
   };
 }
 
