@@ -187,7 +187,7 @@ export async function getOnchainPositions(walletAddress: `0x${string}`): Promise
           valueUsd: formatted * (getCachedPrices()[symbol] || 0),
         });
       }
-    } catch {}
+    } catch (err) { console.error(`[POSITIONS] Aave ${symbol} read failed:`, err); }
   }
 
   // Check Venus vToken balances
@@ -210,7 +210,7 @@ export async function getOnchainPositions(walletAddress: `0x${string}`): Promise
           valueUsd: formatted * (getCachedPrices()[symbol] || 0),
         });
       }
-    } catch {}
+    } catch (err) { console.error(`[POSITIONS] Venus ${symbol} read failed:`, err); }
   }
 
   // Check Lista vault balances
@@ -231,7 +231,7 @@ export async function getOnchainPositions(walletAddress: `0x${string}`): Promise
           valueUsd: formatted * (getCachedPrices()[symbol] || 0),
         });
       }
-    } catch {}
+    } catch (err) { console.error(`[POSITIONS] Lista ${symbol} read failed:`, err); }
   }
 
   // Lista slisBNB staking disabled — long unstaking period

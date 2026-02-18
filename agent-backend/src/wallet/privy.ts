@@ -91,6 +91,7 @@ function buildAuthorizationSignature(
   const appId = process.env.PRIVY_APP_ID!;
   const privKeyDer = Buffer.from(ownerAuthKey, 'base64');
   const markerIdx = privKeyDer.indexOf(Buffer.from([0x04, 0x20]));
+  if (markerIdx === -1) throw new Error('Invalid owner auth key: P-256 private key marker not found');
   const scalar = privKeyDer.subarray(markerIdx + 2, markerIdx + 34);
   const privKeyScalar = p256.utils.normPrivateKeyToScalar(scalar);
 
@@ -199,6 +200,7 @@ export async function exportWalletPrivateKey(walletId: string, ownerAuthKey: str
   // 3. Build authorization signature (matching Privy SDK internals)
   const privKeyDer = Buffer.from(ownerAuthKey, 'base64');
   const markerIdx = privKeyDer.indexOf(Buffer.from([0x04, 0x20]));
+  if (markerIdx === -1) throw new Error('Invalid owner auth key: P-256 private key marker not found');
   const scalar = privKeyDer.subarray(markerIdx + 2, markerIdx + 34);
   const privKeyScalar = p256.utils.normPrivateKeyToScalar(scalar);
 
