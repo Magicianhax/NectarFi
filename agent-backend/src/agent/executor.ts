@@ -44,10 +44,11 @@ export async function executeRebalance(
     };
   }
 
+  let withdrawHash = '';
   try {
     // Step 1: Withdraw from current protocol
     console.log(`Withdrawing ${action.asset} from ${action.fromProtocol}...`);
-    const withdrawHash = await fromAdapter.withdraw(
+    withdrawHash = await fromAdapter.withdraw(
       action.asset, action.amount, walletAddress, sendTx
     );
 
@@ -79,7 +80,7 @@ export async function executeRebalance(
   } catch (error) {
     return {
       action,
-      withdrawTxHash: '',
+      withdrawTxHash: withdrawHash, // preserve if withdraw succeeded but supply failed
       supplyTxHash: '',
       aiSummary: '',
       success: false,
